@@ -23,6 +23,7 @@ def isSpam(content, spamLinkDomains, redirectionDepth):
         return True
 
     res = requests.get(url)
+
     for resp in res.history:
         if redirectionDepth <= 0:
             return False
@@ -32,23 +33,34 @@ def isSpam(content, spamLinkDomains, redirectionDepth):
         else:
             continue
 
-        if resp.url == url: continue
-
         if checkSpamLink(spamLinkDomains, resp.url):
             return True
 
     if checkSpamLink(spamLinkDomains, res.url):
         return True
 
+
+    text=res.text
+
+    aTagUrlStart=0
+    aTagUrlEnd=0
+
+    while redirectionDepth>0:
+        aTagUrlStart = text.find('<a href=\"',aTagUrlEnd)
+        if aTagUrlStart == -1:
+            return False
+        else:
+            aTagUrlStart += 9
+
+        aTagUrlEnd = text.find('\"', aTagUrlStart)
+        aTagUrl=text[aTagUrlStart:aTagUrlEnd]
+        if checkSpamLink(spamLinkDomains,aTagUrl) : return True
+        redirectionDepth -= 1
+
     return False
 
 
-
-
-
-
-
-print(isSpam('spam spam https://goo.gl/nVLutc', ['tvtv24.com'], 1))
+print(isSpam('spam spam https://goo.gl/nVLutc', ['tvtv24.com'], 0))
 
 
 
