@@ -15,40 +15,53 @@ def checkSpamLink(spamLinkDomains, url):
             return True
     return False
 
+import queue
 def findSpamFromRedirect(url, spamLinkDomains,redirectionDepth):
-    res = requests.get(url)
+    wait_urls=queue.Queue()
+    wait_urls.put(url)
 
-    for resp in res.history:
-        if redirectionDepth <= 0:
-            return False
+    while not wait_urls.empty() and redirectionDepth>0 :
+        url=wait_urls.get()
+        res = requests.get(url)
 
-        if resp.status_code == 301 or resp.status_code == 302:
-            redirectionDepth -= 1
-        else:
-            continue
+        for resp in res.history:
+            if redirectionDepth <= 0:
+                return False
 
-        if checkSpamLink(spamLinkDomains, resp.url):
+            if resp.status_code == 301 or resp.status_code == 302:
+                redirectionDepth -= 1
+            else:
+                continue
+
+            if checkSpamLink(spamLinkDomains, resp.url):
+                return True
+
+        if checkSpamLink(spamLinkDomains, res.url):
             return True
 
-    if checkSpamLink(spamLinkDomains, res.url):
-        return True
+        text=res.text
 
-    text=res.text
+        aTagUrlEnd = 0
 
-    aTagUrlEnd = 0
+        while redirectionDepth>0:
+            aTagUrlStart = text.find('<a href=\"', aTagUrlEnd)
 
-    while redirectionDepth>0:
-        aTagUrlStart = text.find('<a href=\"', aTagUrlEnd)
-        if aTagUrlStart == -1:
-            return False
-        else:
-            aTagUrlStart += 9
+            if aTagUrlStart == -1:
+                break
+            else:
+                aTagUrlStart += 9
 
-        aTagUrlEnd = text.find('\"', aTagUrlStart)
-        aTagUrl = text[aTagUrlStart:aTagUrlEnd]
-        if checkSpamLink(spamLinkDomains, aTagUrl): return True
-        if findSpamFromRedirect(url, spamLinkDomains,redirectionDepth) :
-            return True
+            aTagUrlEnd = text.find('\"', aTagUrlStart)
+            aTagUrl = text[aTagUrlStart:aTagUrlEnd]
+
+            if checkSpamLink(spamLinkDomains, aTagUrl): return True
+            no_add = False
+            for i in range(0, wait_urls.qsize()):
+                tmp = wait_urls.get()
+                if tmp == aTagUrl:
+                    no_add = True
+                wait_urls.put(tmp)
+            if not no_add : wait_urls.put(aTagUrl)
 
         redirectionDepth-=1
 
@@ -62,9 +75,6 @@ def isSpam(content, spamLinkDomains, redirectionDepth):
         return True
 
     return False
-
-
-print(isSpam('spam spam https://goo.gl/nVLutc', ['tvtv24.com'], 2))
 
 
 
